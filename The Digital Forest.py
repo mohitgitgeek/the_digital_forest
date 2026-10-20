@@ -1,162 +1,224 @@
-import random
+<!DOCTYPE html>
+<html>
+<head>
+    <title>The Digital Forest</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
 
-# Constants
-GRID_SIZE = 15  # 15x15 grid
-VISIBILITY = 3  # 3x3 visibility
-ROUNDS = 20  # Total rounds to play
-HEALTH_THRESHOLD = 50
-ENERGY_THRESHOLD = 50
-TERRAIN_SHIFT_MOVES = 5  # Terrain changes every 5 moves
+        #game-container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            margin-top: 20px;
+        }
 
-# Initialize player attributes
-player_health = 100
-player_energy = 100
-player_position = [7, 7]  # Start at the center of the grid
-moves_counter = 0
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            gap: 5px;
+        }
 
-# Tile effects
-TILE_EFFECTS = {
-    "G": {"health": 0, "energy": 0, "name": "Grass"},      # Grass: No effect
-    "W": {"health": 0, "energy": +10, "name": "Water"},    # Water: Restore energy
-    "T": {"health": 0, "energy": 0, "name": "Tree"},       # Tree: Block movement
-    "DZ": {"health": -20, "energy": -10, "name": "Danger Zone"}, # Danger Zone: Lose health & energy
-    "O": {"health": -5, "energy": -5, "name": "Obstacle"}, # Obstacle: Minor loss of health & energy
-    "F": {"health": +15, "energy": +15, "name": "Fruit"}   # Fruit: Restore health & energy
-}
+        .tile {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #00ff00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: all 0.3s;
+        }
 
-# Generate a random grid with tiles
-def create_grid():
-    tiles = list(TILE_EFFECTS.keys())
-    weights = [0.4, 0.15, 0.1, 0.1, 0.1, 0.15]  # Weighted distribution of tiles
-    return [[random.choices(tiles, weights)[0] for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+        .stats {
+            background: #000;
+            padding: 20px;
+            border: 1px solid #00ff00;
+        }
 
-grid = create_grid()
+        .progress-bar {
+            height: 20px;
+            background: #333;
+            margin: 10px 0;
+        }
 
-# Shift terrain positions every TERRAIN_SHIFT_MOVES moves
-def shift_terrain():
-    global grid
-    
-    special_tiles = ["W", "T", "F", "DZ"]  # Tiles to shift positions
-    
-    # Find current positions of special tiles and clear them from the grid (replace with grass)
-    for i in range(GRID_SIZE):
-        for j in range(GRID_SIZE):
-            if grid[i][j] in special_tiles:
-                grid[i][j] = "G"
-    
-    # Randomly place special tiles in new positions on the grid
-    for tile in special_tiles:
-        for _ in range(random.randint(5, 10)):  # Random number of each tile type
-            x, y = random.randint(0, GRID_SIZE - 1), random.randint(0, GRID_SIZE - 1)
-            grid[x][y] = tile
-    
-    print("\n🌲 Terrain has shifted! Special tiles have moved.")
+        .progress-fill {
+            height: 100%;
+            background: #00ff00;
+            transition: width 0.3s;
+        }
 
-# Get visible area (3x3 around player)
-def get_visible_area():
-    visible_area = []
-    for i in range(max(0, player_position[0] - VISIBILITY // 2), min(GRID_SIZE, player_position[0] + VISIBILITY // 2 + 1)):
-        row = []
-        for j in range(max(0, player_position[1] - VISIBILITY // 2), min(GRID_SIZE, player_position[1] + VISIBILITY // 2 + 1)):
-            if i == player_position[0] and j == player_position[1]:
-                row.append("P")  # Mark player position with 'P'
-            else:
-                row.append(grid[i][j])
-        visible_area.append(row)
-    return visible_area
+        .controls {
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
 
-# Display game state (visible area and stats)
-def display_game_state(round_num):
-    print(f"\n--- Round {round_num}/{ROUNDS} ---")
-    print(f"Health: {player_health}, Energy: {player_energy}")
-    
-    visible_area = get_visible_area()
-    print("\nVisible Area (3x3):")
-    for row in visible_area:
-        print(" ".join(row))
-    
-    print("\nLegend:")
-    print("P: Player")
-    for key, value in TILE_EFFECTS.items():
-        print(f"{key}: {value['name']}")
+        button {
+            background: #000;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            cursor: pointer;
+        }
 
-# Apply tile effects based on current position
-def interact_with_tile():
-    global player_health, player_energy
-    
-    current_tile = grid[player_position[0]][player_position[1]]
-    effects = TILE_EFFECTS[current_tile]
-    
-    player_health += effects["health"]
-    player_energy += effects["energy"]
-    
-    print(f"You stepped on a '{TILE_EFFECTS[current_tile]['name']}' tile.")
-    
-    if effects["health"] < 0 or effects["energy"] < 0:
-        print(f"Lost {abs(effects['health'])} health and {abs(effects['energy'])} energy.")
-    
-    if effects["health"] > 0 or effects["energy"] > 0:
-        print(f"Gained {effects['health']} health and {effects['energy']} energy.")
-    
-    # Cap health and energy at max value of 100 and min value of zero
-    player_health = min(max(player_health, 0), 100)
-    player_energy = min(max(player_energy, 0), 100)
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-# Move the player in a direction
-def move_player(direction):
-    global player_position, moves_counter
-    
-    moves = {
-        "up": [-1, 0],
-        "down": [1, 0],
-        "left": [0, -1],
-        "right": [0, +1]
-    }
-    
-    new_position = [
-        player_position[0] + moves[direction][0],
-        player_position[1] + moves[direction][1]
-    ]
-    
-    if (0 <= new_position[0] < GRID_SIZE and 
-        0 <= new_position[1] < GRID_SIZE):
-        
-        if grid[new_position[0]][new_position[1]] != "T":
-            player_position = new_position
-            moves_counter += 1
-            
-            if moves_counter % TERRAIN_SHIFT_MOVES == 0:
-                shift_terrain()
-            
-            return True
-        
-        print("Movement blocked by a tree!")
-        return False
-    
-    print("Cannot move outside the forest boundaries!")
-    return False
+        button:hover:enabled {
+            background: #00ff0022;
+        }
 
-# Main game loop
-print("Welcome to The Digital Forest!")
-print("Navigate through the forest while maintaining at least 50% health and energy.")
-print("Special tiles (Water/Tree/Fruit/Danger Zone) will shift positions every five moves!")
+        #message-log {
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 700px;
+            background: #111;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌲 The Digital Forest 🌲</h1>
+    <div id="game-container">
+        <div>
+            <div id="grid"></div>
+            <div class="controls">
+                <button onclick="move('up')">↑ Up</button>
+                <button onclick="move('left')">← Left</button>
+                <button onclick="move('right')">→ Right</button>
+                <button onclick="move('down')">↓ Down</button>
+            </div>
+        </div>
+        <div class="stats">
+            <h3>Round: <span id="round">1</span>/20</h3>
+            <div>Health: <span id="health">100</span></div>
+            <div class="progress-bar"><div id="health-bar" class="progress-fill" style="width: 100%"></div></div>
+            <div>Energy: <span id="energy">100</span></div>
+            <div class="progress-bar"><div id="energy-bar" class="progress-fill" style="width: 100%"></div></div>
+            <h4>Legend</h4>
+            <div>🌿: Grass</div>
+            <div>💧: Water</div>
+            <div>🌳: Tree</div>
+            <div>☠️: Danger</div>
+            <div>🚧: Obstacle</div>
+            <div>🍎: Fruit</div>
+        </div>
+    </div>
+    <div id="message-log"></div>
 
-for round_num in range(1, ROUNDS + 1):
-    display_game_state(round_num)
-    
-    interact_with_tile()
-    
-    if player_health < HEALTH_THRESHOLD or player_energy < ENERGY_THRESHOLD:
-        print("\nGame Over! You failed to maintain sufficient health or energy.")
-        break
-    
-    valid_move = False
-    while not valid_move:
-        direction = input("\nChoose your move (up/down/left/right): ").lower()
-        if direction in ["up", "down", "left", "right"]:
-            valid_move = move_player(direction)
-        else:
-            print("Invalid direction! Please choose up/down/left/right.")
+    <script>
+        const TILE_EFFECTS = {
+            "G": { health: 0, energy: 0, name: "Grass", icon: "🌿" },
+            "W": { health: 0, energy: 10, name: "Water", icon: "💧" },
+            "T": { health: 0, energy: 0, name: "Tree", icon: "🌳" },
+            "DZ": { health: -20, energy: -10, name: "Danger Zone", icon: "☠️" },
+            "O": { health: -5, energy: -5, name: "Obstacle", icon: "🚧" },
+            "F": { health: 15, energy: 15, name: "Fruit", icon: "🍎" }
+        };
 
-if player_health >= HEALTH_THRESHOLD and player_energy >= ENERGY_THRESHOLD:
-    print("\nCongratulations! You survived The Digital Forest!")
+        const messageLog = document.getElementById("message-log");
+        let gameState = null;
+
+        function renderGrid(visibleArea) {
+            const gridDiv = document.getElementById("grid");
+            gridDiv.innerHTML = "";
+
+            for (const row of visibleArea || []) {
+                for (const tileCode of row) {
+                    const tileDiv = document.createElement("div");
+                    tileDiv.className = "tile";
+
+                    if (tileCode === "P") {
+                        tileDiv.style.background = "#00ff00";
+                        tileDiv.style.color = "#000";
+                        tileDiv.textContent = "🧑";
+                    } else if (tileCode === null) {
+                        tileDiv.textContent = "";
+                        tileDiv.style.background = "#222";
+                    } else {
+                        tileDiv.textContent = TILE_EFFECTS[tileCode].icon;
+                    }
+
+                    gridDiv.appendChild(tileDiv);
+                }
+            }
+        }
+
+        function renderState(state) {
+            if (!state) return;
+            gameState = state;
+
+            document.getElementById("health").textContent = state.health;
+            document.getElementById("energy").textContent = state.energy;
+            document.getElementById("round").textContent = state.round;
+            document.getElementById("health-bar").style.width = `${Math.max(0, state.health)}%`;
+            document.getElementById("energy-bar").style.width = `${Math.max(0, state.energy)}%`;
+
+            renderGrid(state.visible_area);
+            messageLog.innerHTML = (state.message_log || []).map(msg => `<div>${msg}</div>`).join("");
+        }
+
+        async function sendRequest(url, options = {}) {
+            const response = await fetch(url, {
+                headers: { "Content-Type": "application/json" },
+                ...options
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed: ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        async function move(direction) {
+            if (gameState && gameState.game_over) return;
+
+            try {
+                const result = await sendRequest("/api/move", {
+                    method: "POST",
+                    body: JSON.stringify({ direction })
+                });
+                renderState(result.state);
+            } catch (error) {
+                console.error(error);
+                messageLog.innerHTML = "<div>Unable to connect to the game server.</div>";
+            }
+        }
+
+        async function initializeGame() {
+            try {
+                const state = await sendRequest("/api/state");
+                renderState(state);
+            } catch (error) {
+                console.error(error);
+                messageLog.innerHTML = "<div>Unable to connect to the game server. Start the backend with: python app.py</div>";
+            }
+        }
+
+        document.addEventListener("keydown", function (event) {
+            if (gameState && gameState.game_over) return;
+
+            if (event.key === "ArrowUp") move("up");
+            if (event.key === "ArrowDown") move("down");
+            if (event.key === "ArrowLeft") move("left");
+            if (event.key === "ArrowRight") move("right");
+        });
+
+        window.onload = initializeGame;
+    </script>
+</body>
+</html>
